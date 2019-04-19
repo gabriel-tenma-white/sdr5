@@ -1,0 +1,11 @@
+sdr5.*
+*-
+*-1
+*-2
+*-3
+*.bak*
+*~
+*.png
+*.net
+*.pcb.txt
+*.sch.txt
