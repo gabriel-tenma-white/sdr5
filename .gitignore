@@ -5,7 +5,6 @@ sdr5.*
 *-3
 *.bak*
 *~
-*.png
 *.net
 *.pcb.txt
 *.sch.txt
