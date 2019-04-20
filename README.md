@@ -11,6 +11,13 @@
 **sdr5_2** - a Zynq + AD9363 SDR platform, layout based on zynq_som_2.
 * awaiting prototype
 
+* Differences compared to ADALM-PLUTO:
+  * Full 32 bits of the DDR3 are routed (for 2x memory bandwidth and 1GB memory)
+  * Integrated RF frontends (LNA, PA, SAW filter) for two ISM bands (860/915MHz and 2450MHz)
+  * Shielding
+  * 4 layer board to reduce cost
+  * SD slot for running real Linux distros
+
 ---
 To open schematics, it is necessary to add all gEDA symbols here to your symbol library: https://github.com/gabriel-tenma-white/sym
 
