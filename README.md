@@ -13,6 +13,7 @@
 
 * Differences compared to ADALM-PLUTO:
   * Full 32 bits of the DDR3 are routed (for 2x memory bandwidth and 1GB memory)
+  * Support for Zynq-7020 and Zynq-7010 in 400pin BGA package
   * Integrated RF frontends (LNA, PA, SAW filter) for two ISM bands (860/915MHz and 2450MHz)
   * Shielding
   * 4 layer board to reduce cost
