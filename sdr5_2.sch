@@ -3211,7 +3211,7 @@ C 26400 67100 1 90 0 tcxo3225.sym
 T 24900 68500 5 10 1 1 90 6 1
 refdes=U5
 T 25300 67600 5 10 0 0 90 0 1
-device=3225 oscillator 3.3V 33MHz
+device=3225 oscillator 3.3V 50MHz
 T 26400 67100 5 10 0 0 0 0 1
 footprint=tcxo3225
 }
@@ -4050,7 +4050,7 @@ device=RESISTOR
 T 66000 28900 5 10 1 1 270 0 1
 refdes=R28
 T 66000 29400 5 10 1 1 270 0 1
-value=4.7k
+value=2.2k
 T 66300 29100 5 10 1 1 270 0 1
 footprint=0402
 }
@@ -4075,7 +4075,7 @@ device=RESISTOR
 T 67100 28900 5 10 1 1 270 0 1
 refdes=R29
 T 67100 29400 5 10 1 1 270 0 1
-value=4.7k
+value=1k
 T 67400 29100 5 10 1 1 270 0 1
 footprint=0402
 }
@@ -4235,6 +4235,8 @@ T 81800 33900 5 10 1 1 180 6 1
 value=1
 T 81200 33900 5 10 1 1 180 6 1
 footprint=0402
+T 81100 33800 5 10 0 0 0 0 1
+symversion=hippity hoppity women are property
 }
 N 80700 34400 81100 34400 4
 C 79800 33900 1 180 1 capacitor-1.sym
@@ -6425,8 +6427,6 @@ T 107900 10000 9 10 1 0 0 0 1
 1.5mm
 T 109200 12600 9 10 1 0 90 0 1
 6mm
-T 106700 12500 9 10 1 0 270 0 1
-3mm
 C 99100 67000 1 180 0 terminal-1.sym
 {
 T 98790 66250 5 10 0 0 180 0 1
@@ -7751,7 +7751,7 @@ device=RESISTOR
 T 82300 6700 5 10 1 1 0 0 1
 refdes=R50
 T 82800 6700 5 10 1 1 0 0 1
-value=100
+value=47
 T 82600 6300 5 10 1 1 0 0 1
 footprint=0402
 }
