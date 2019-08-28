@@ -1,0 +1,224 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<script src="js/oscilloscope.js"></script>
+<style>
+canvas {
+	border: solid 1px #ccc;
+}
+.statusXY span {
+	display: inline-block;
+}
+#statusBar {
+	position: fixed;
+	left: 0px; right: 0px; bottom: 0px;
+	background-color: #ffffff;
+	padding: 2px 4px;
+}
+</style>
+</head>
+<body>
+	<canvas id="c1" style="width: 100%; height: 150px;"></canvas>
+	<canvas id="c2" style="width: 100%; height: 150px;"></canvas>
+	<div class="statusXY">
+		<span id="statusX" style="width: 100px"></span>
+		<span id="statusY" style="width: 100px"></span>
+	</div>
+	<input type="button" onclick="init();" id="b_init" value="Connect" />
+	<input type="button" onclick="doSend('start');" value="Start" />
+	<input type="button" onclick="doSend('stop');" value="Stop" />
+	<div id="output"></div>
+	<div id="statusBar">
+		<span id="statusText"></span>
+	</div>
+	<script>
+		
+	function gE(id) {
+		return document.getElementById(id);
+	}
+	
+	// initialize websocket
+	var wsUri = "ws://"+window.location.host+"/points";
+	var output;
+	function init() {
+		gE("b_init").disabled=true;
+		output = document.getElementById("output");
+		testWebSocket();
+	}
+	function testWebSocket() {
+		websocket = new WebSocket(wsUri);
+		websocket.binaryType = 'arraybuffer';
+		websocket.onopen = function(evt) { onOpen(evt) };
+		websocket.onclose = function(evt) { onClose(evt) };
+		websocket.onmessage = function(evt) { onMessage(evt) };
+		websocket.onerror = function(evt) { onError(evt) };
+	}
+	function onOpen(evt) {
+		writeToScreen("CONNECTED");
+		for(var i=0; i<oscilloscopes.length; i++)
+			oscilloscopes[i].onzoom();
+	}
+	function onClose(evt) {
+		writeToScreen("DISCONNECTED");
+		gE("b_init").disabled=false;
+	}
+	var messageCount = 0;
+	function onMessage(evt) {
+		messageCount++;
+		document.getElementById("statusText").textContent = messageCount.toString() + ' messages received';
+		if(evt.data instanceof ArrayBuffer) {
+			handleBinaryMessage(evt);
+		} else {
+			writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+
+			// spectrumParams INDEX CENTER_FREQ_HZ BW_HZ
+			if(evt.data.startsWith('spectrumParams ')) {
+				var spl = evt.data.split(' ');
+				var i =				parseInt(spl[1]);
+				var center =		parseFloat(spl[2]) * 1e-6;
+				var bw =			parseFloat(spl[3]) * 1e-6;
+				oscilloscopes[i].xValueLeft = -bw/2 + center;
+				oscilloscopes[i].xValueRight = bw/2 + center;
+			}
+		}
+		//websocket.close();
+	}
+	function handleBinaryMessage(evt) {
+		var headerBytes = 22;
+		var dv_headers = new DataView(evt.data, 0, headerBytes);
+		var dv_samples = new DataView(evt.data, headerBytes);
+		var len = evt.data.byteLength - headerBytes;
+		
+		// the total length of the waveform in hw samples
+		var h_waveSizeSamples = dv_headers.getInt32(0, true);
+		// the start of the subview in hw samples
+		var h_startSamples = dv_headers.getInt32(4, true);
+		// how many hw samples each mipmap sample covers
+		var h_compressionFactor = dv_headers.getInt32(8, true);
+		// the original Y value corresponding to the lowest possible received number (0)
+		var h_yLower = dv_headers.getFloat32(12, true);
+		// the original Y value corresponding to the highest possible received number (255)
+		var h_yUpper = dv_headers.getFloat32(16, true);
+
+		var h_displayIndex = dv_headers.getInt8(20, true);
+		var h_flags = dv_headers.getInt8(21, true);
+		var FLAG_IS_MIPMAP = 1;
+		var FLAG_IS_SPECTRUM = 1 << 1;
+		var channels = 2;
+		var sampleDepth = 1;
+		var osc = oscilloscopes[h_displayIndex];
+		var A = (h_yUpper - h_yLower) / 255;
+		var B = h_yLower;
+		//writeToScreen(h_yLower + " " + h_yUpper);
+		
+		if((h_flags & FLAG_IS_SPECTRUM)) channels = 1;
+		osc.dataIsMipmap = (h_flags & FLAG_IS_MIPMAP) != 0;
+		osc.dataWidth = h_compressionFactor;
+		osc.dataLeft = h_startSamples;
+		osc.xLower = 0;
+		osc.xUpper = h_waveSizeSamples;
+		if(osc.dataIsMipmap) {
+			var sampleGroupBytes = channels*sampleDepth*2;
+			var samples = len/sampleGroupBytes;
+			osc.channels = new Array(channels);
+			//osc.paddingLeft = h_startSamples / h_compressionFactor;
+			//osc.paddingRight = (h_waveSizeSamples - h_startSamples) / h_compressionFactor - samples;
+			
+			//writeToScreen(osc.paddingRight);
+			//var valMax = 0;
+			for(var ch=0; ch<channels; ch++) {
+				var arr = new Array(samples*2);
+				var offs = ch*sampleDepth*2;
+				for(var i=0; i<samples; i++) {
+					var lower = dv_samples.getUint8(i*sampleGroupBytes + offs, true);
+					var upper = dv_samples.getUint8(i*sampleGroupBytes + offs + sampleDepth, true);
+					arr[i*2] = lower * A + B;
+					arr[i*2+1] = upper * A + B;
+					//if(upper > valMax) valMax = upper;
+				}
+				//arr = [-1000,1000,0,0,-500,0,0,500];
+				//writeToScreen(valMax);
+				osc.channels[ch] = arr;
+			}
+		} else {
+			var sampleGroupBytes = channels*sampleDepth;
+			var samples = len/sampleGroupBytes;
+			osc.channels = new Array(channels);
+			for(var ch=0; ch<channels; ch++) {
+				var arr = new Array(samples);
+				var offs = ch*sampleDepth;
+				for(var i=0; i<samples; i++) {
+					var samp = dv_samples.getUint8(i*sampleGroupBytes + offs, true);
+					arr[i] = samp * A + B;
+				}
+				osc.channels[ch] = arr;
+			}
+		}
+		
+		osc.refresh();
+	}
+	function onError(evt) {
+		writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+	}
+	function doSend(message) {
+		writeToScreen("SENT: " + message); 
+		websocket.send(message);
+	}
+	function writeToScreen(message) {
+		var pre = document.createElement("p");
+		pre.style.wordWrap = "break-word";
+		pre.innerHTML = message;
+		output.appendChild(pre);
+	}
+	window.addEventListener("load", init, false);
+	
+	var oscilloscopes = [];
+	
+	function setupOscilloscope(canvasId, i) {
+		var canvas = document.getElementById(canvasId);
+		var osc = oscilloscopes[i] = new Oscilloscope(canvas);
+		osc.onzoom = function() {
+			var viewExtents = osc.zoomVirtualExtents();
+			var yExtents = osc.zoomYExtents();
+			doSend("setview " + i.toString() + " " + viewExtents[0] + " " + viewExtents[1]
+						+ " " + yExtents[0] + " " + yExtents[1]);
+		};
+		canvas.onmousemove = function(ev) {
+			var e=ev?ev:event;
+			var eX=e.clientX-canvas.getBoundingClientRect().left;
+			var eY=e.clientY-canvas.getBoundingClientRect().top;
+			
+			if(osc.xValueLeft != null) {
+				var x = osc.xValueLeft + osc.xToVirtual(eX) * (osc.xValueRight - osc.xValueLeft);
+				gE("statusX").textContent = (Math.round(x*100)/100).toString();
+			} else {
+				var ind = osc.xToIndex(eX);
+				gE("statusX").textContent = (Math.round(ind)).toString();
+			}
+			var val = osc.yToValue(eY);
+			gE("statusY").textContent = (Math.round(val*100)/100).toString();
+		};
+		osc.refresh();
+	}
+	var centerFreqMHz = 100.1;
+	var bandwidthMHz = 20.48;
+	
+	setupOscilloscope('c1', 0);
+	setupOscilloscope('c2', 1);
+	oscilloscopes[0].yLower = -2500;
+	oscilloscopes[0].yUpper = 2500;
+	oscilloscopes[1].yLower = -50;
+	oscilloscopes[1].yUpper = 80;
+	oscilloscopes[1].xValueLeft = -bandwidthMHz/2 + centerFreqMHz;
+	oscilloscopes[1].xValueRight = bandwidthMHz/2 + centerFreqMHz;
+	
+
+	
+	window.onresize = function() {
+		for(var i=0; i<osc.length; i++)
+			oscilloscopes[i].refresh();
+	};
+	</script>
+</body>
+</html>
