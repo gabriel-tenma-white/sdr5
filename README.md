@@ -2,13 +2,16 @@
 
 ## sdr5_2
 Zynq + AD9363 SDR platform, layout based on zynq_som_2.
-* Bringup progress:
+
+![sdr5_2](sdr5_2_photo.jpg)
+
+* **Bringup progress:**
   * Zynq + DDR, Linux, memtest: working
   * AD9363 receive and transmit: working
   * Power amplifiers: TBD
   * LNA + filters: TBD
   * Ethernet: TBD
-* Errata:
+* **Errata:**
   * AD9363 main 1.3V rail is powered by a AP3419 buck converter. It does not exit pulse skipping mode at the typical RX current consumption, adding significant phase noise (-30dBc spurs). Workaround: solder 2 10ohm resistors from VCC1P3 to ground. TODO: test JW5211 (pin compatible substitute, lower current rating)
 
 * Differences compared to ADALM-PLUTO:
