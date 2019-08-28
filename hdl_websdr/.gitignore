@@ -1,0 +1,11 @@
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.srcs/sim_1/imports
+*.srcs/sources_1/bd/mref
+*.lock
+*.bxml
+*.tsm
+/*.csv
