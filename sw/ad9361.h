@@ -3410,6 +3410,8 @@ int32_t ad9361_spi_readm(struct spi_device *spi, uint32_t reg,
 int32_t ad9361_spi_read(struct spi_device *spi, uint32_t reg);
 int32_t ad9361_spi_write(struct spi_device *spi,
 	uint32_t reg, uint32_t val);
+int32_t __ad9361_spi_writef(struct spi_device *spi, uint32_t reg,
+	uint32_t mask, uint32_t offset, uint32_t val);
 int32_t ad9361_reset(struct ad9361_rf_phy *phy);
 int32_t register_clocks(struct ad9361_rf_phy *phy);
 int32_t ad9361_init_gain_tables(struct ad9361_rf_phy *phy);

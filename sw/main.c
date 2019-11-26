@@ -59,6 +59,20 @@
 #include <assert.h>
 #include <string.h>
 
+
+/**
+ * SPI register bits write.
+ * @param spi
+ * @param reg The register address.
+ * @param mask The bits mask.
+ * @param val The bits value.
+ * @return 0 in case of success, negative error code otherwise.
+ */
+#define ad9361_spi_writef(spi, reg, mask, val) \
+	__ad9361_spi_writef(spi, reg, mask, find_first_bit(mask), val)
+
+
+
 /******************************************************************************/
 /************************ Variables Definitions *******************************/
 /******************************************************************************/
@@ -86,7 +100,7 @@ AD9361_InitParam default_init_param = {
 	/* Base Configuration */
 	0,		//two_rx_two_tx_mode_enable *** adi,2rx-2tx-mode-enable
 	1,		//one_rx_one_tx_mode_use_rx_num *** adi,1rx-1tx-mode-use-rx-num
-	2,		//one_rx_one_tx_mode_use_tx_num *** adi,1rx-1tx-mode-use-tx-num
+	1,		//one_rx_one_tx_mode_use_tx_num *** adi,1rx-1tx-mode-use-tx-num
 	1,		//frequency_division_duplex_mode_enable *** adi,frequency-division-duplex-mode-enable
 	0,		//frequency_division_duplex_independent_mode_enable *** adi,frequency-division-duplex-independent-mode-enable
 	0,		//tdd_use_dual_synth_mode_enable *** adi,tdd-use-dual-synth-mode-enable
@@ -123,7 +137,7 @@ AD9361_InitParam default_init_param = {
 	0,		//rx_rf_port_input_select *** adi,rx-rf-port-input-select
 	0,		//tx_rf_port_input_select *** adi,tx-rf-port-input-select
 	/* TX Attenuation Control */
-	0,		//tx_attenuation_mdB *** adi,tx-attenuation-mdB
+	0,	//tx_attenuation_mdB *** adi,tx-attenuation-mdB
 	0,		//update_tx_gain_in_alert_enable *** adi,update-tx-gain-in-alert-enable
 	/* Reference Clock Control */
 	1,		//xo_disable_use_ext_refclk_enable *** adi,xo-disable-use-ext-refclk-enable
@@ -423,10 +437,10 @@ int main(void)
 		rx_fir_config.rx_coef[i] = int16_t(taps[i]*32767);
 	
 
-	default_init_param.rx_synthesizer_frequency_hz = uint64_t(100.1 * 1000000);
-	default_init_param.tx_synthesizer_frequency_hz = uint64_t(2305.1 * 1000000);
-	default_init_param.rf_rx_bandwidth_hz = 10000 * 1000L;
-	default_init_param.rf_tx_bandwidth_hz = 10000 * 1000L;
+	default_init_param.rx_synthesizer_frequency_hz = uint64_t(100.0 * 1000000);
+	default_init_param.tx_synthesizer_frequency_hz = uint64_t(2400.1 * 1000000);
+	default_init_param.rf_rx_bandwidth_hz = 20000 * 1000L;
+	default_init_param.rf_tx_bandwidth_hz = 20000 * 1000L;
 	
 	if(ad9361_init(&ad9361_phy, &default_init_param) < 0) {
 		printf("ad9361_init failed\n");
@@ -435,12 +449,25 @@ int main(void)
 
 	assert(ad9361_set_tx_fir_config(ad9361_phy, tx_fir_config) >= 0);
 	assert(ad9361_set_rx_fir_config(ad9361_phy, rx_fir_config) >= 0);
-	assert(ad9361_set_rx_sampling_freq(ad9361_phy, 20.48 * 1000000) >= 0);
-	assert(ad9361_set_tx_sampling_freq(ad9361_phy, 20.48 * 1000000) >= 0);
+	assert(ad9361_set_rx_sampling_freq(ad9361_phy, 50 * 1000000) >= 0);
+	assert(ad9361_set_tx_sampling_freq(ad9361_phy, 50 * 1000000) >= 0);
+
+	// set all gpos to manual mode
+	assert(ad9361_spi_writef(ad9361_phy->spi, REG_EXTERNAL_LNA_CTRL,
+		GPO_MANUAL_SELECT, 1) == 0);
+
+	// turn on 2.4GHz PA by setting gpo
+	int SDR5_AD9361_GPO_PA24_EN = 3;
+	assert(ad9361_spi_writef(ad9361_phy->spi, REG_GPO_FORCE_AND_INIT,
+		(1 << 4) << SDR5_AD9361_GPO_PA24_EN, 1) == 0);
+
+
+
 	//assert(ad9361_set_trx_fir_en_dis(ad9361_phy, ENABLE) >= 0);
 	//assert(ad9361_set_trx_fir_en_dis(ad9361_phy, 0) >= 0);
 	//assert(ad9361_spi_write(ad9361_phy->spi, 0x3f4, 0b00111011) == 0);
-	//assert(ad9361_set_rx_rf_gain(ad9361_phy, 0, 45) >= 0);
+	//assert(ad9361_set_rx_gain_control_mode(ad9361_phy, 0, RF_GAIN_MGC) >= 0);
+	//assert(ad9361_set_rx_rf_gain(ad9361_phy, 0, 40) >= 0);
 
 #ifdef CONSOLE_COMMANDS
 	get_help(nullptr, 0);

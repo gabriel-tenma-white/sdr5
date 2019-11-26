@@ -691,7 +691,7 @@ int32_t ad9361_spi_write(struct spi_device *spi,
  * @param val The bits value.
  * @return 0 in case of success, negative error code otherwise.
  */
-static int32_t __ad9361_spi_writef(struct spi_device *spi, uint32_t reg,
+int32_t __ad9361_spi_writef(struct spi_device *spi, uint32_t reg,
 	uint32_t mask, uint32_t offset, uint32_t val)
 {
 	uint8_t buf;
