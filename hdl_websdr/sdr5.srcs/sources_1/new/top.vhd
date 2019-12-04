@@ -73,19 +73,25 @@ architecture a of top is
 	
 	
 	signal cnt: unsigned(3 downto 0);
-	signal AD9361_TXD, AD9361_RXD, AD9361_TXD_INV, AD9361_RXD_INV: signed(5 downto 0);
-	signal AD9361_DATA_CLK, AD9361_FB_CLK, AD9361_DATA_CLK_INV: std_logic;
+	signal AD9361_TXD, AD9361_RXD: signed(5 downto 0);
+	signal AD9361_DATA_CLK, AD9361_FB_CLK, AD9361_FB_CLK_fwd, AD9361_DATA_CLK_INV: std_logic;
 	signal AD9361_TX_FRM, AD9361_RX_FRM: std_logic;
 	
 	-- after iddr
 	signal ad_rxdI,ad_rxdQ,ad_rxdI1,ad_rxdQ1,ad_rxdI2,ad_rxdQ2: signed(5 downto 0);
 	signal ad_rxFI,ad_rxFQ,ad_rxFI1,ad_rxFQ1,ad_rxFI2,ad_rxFQ2: std_logic;
+	signal ad_rxdI_invCorrected, ad_rxdQ_invCorrected: signed(5 downto 0);
 	-- after framing
 	signal ad_rxI0, ad_rxQ0, ad_rxI, ad_rxQ: signed(11 downto 0);
+
+	-- before iddr
+	signal ad_txdI,ad_txdQ, ad_txdI0, ad_txdQ0: signed(5 downto 0);
+	-- before framing
+	signal ad_txI, ad_txQ, ad_txI0, ad_txQ0, ad_txI1, ad_txQ1: signed(11 downto 0);
 	
 	signal EMIO_GPIO_I,EMIO_GPIO_O,EMIO_GPIO_T: STD_LOGIC_VECTOR(31 downto 0);
-	signal streamIn_tdata: std_logic_vector(31 downto 0) := (others=>'0');
-	signal streamIn_tstrobe,streamIn_tready,streamClk: std_logic;
+	signal streamIn_tdata, streamOut_tdata: std_logic_vector(31 downto 0) := (others=>'0');
+	signal streamIn_tstrobe,streamIn_tready,streamClk, streamOut_tvalid, streamOut_tready: std_logic;
 begin
 	
 	STARTUPE2_inst : STARTUPE2
@@ -147,32 +153,36 @@ begin
 	
 	ibuf1_data_clk: IBUFDS port map(I=>AD9361_DATA_CLK_P, IB=>AD9361_DATA_CLK_N, O=>AD9361_DATA_CLK_INV);
 	ibuf1_rx_frm: IBUFDS port map(I=>AD9361_RX_FRM_P, IB=>AD9361_RX_FRM_N, O=>AD9361_RX_FRM);
-	obuf1_fb_clk: OBUFDS port map(I=>AD9361_FB_CLK, O=>AD9361_FB_CLK_P, OB=>AD9361_FB_CLK_N);
+	oddr1_fb_clk: ODDR port map(CE=>'1', C=>AD9361_FB_CLK, Q=>AD9361_FB_CLK_fwd, D1=>'1', D2=>'0');
+	obuf1_fb_clk: OBUFDS port map(I=>AD9361_FB_CLK_fwd, O=>AD9361_FB_CLK_P, OB=>AD9361_FB_CLK_N);
 	obuf1_tx_frm: OBUFDS port map(I=>AD9361_TX_FRM, O=>AD9361_TX_FRM_P, OB=>AD9361_TX_FRM_N);
 	gen_diffbuff: for X in 0 to 5 generate
-		obuf1: OBUFDS port map(I=>AD9361_TXD_INV(X), O=>AD9361_TXD_P(X), OB=>AD9361_TXD_N(X));
-		ibuf1: IBUFDS port map(I=>AD9361_RXD_P(X), IB=>AD9361_RXD_N(X), O=>AD9361_RXD_INV(X));
+		obuf1: OBUFDS port map(I=>AD9361_TXD(X), O=>AD9361_TXD_P(X), OB=>AD9361_TXD_N(X));
+		ibuf1: IBUFDS port map(I=>AD9361_RXD_P(X), IB=>AD9361_RXD_N(X), O=>AD9361_RXD(X));
 		
 		-- ad9361 ddr data is falling-edge-first, meaning SAME_EDGE mode will give us the right
 		-- alignment and ordering
 		iddr1: IDDR generic map(DDR_CLK_EDGE=>"SAME_EDGE")
 				port map(CE=>'1', C=>AD9361_DATA_CLK, D=>AD9361_RXD(X), Q2=>ad_rxdI(X), Q1=>ad_rxdQ(X));
+		
+		oddr1: ODDR generic map(DDR_CLK_EDGE=>"SAME_EDGE")
+				port map(CE=>'1', C=>AD9361_FB_CLK, Q=>AD9361_TXD(X), D1=>ad_txdI(X), D2=>ad_txdQ(X));
 	end generate;
 	
 	-- correct for inversions in layout design
 	AD9361_DATA_CLK <= not AD9361_DATA_CLK_INV;
-	AD9361_RXD(0) <= AD9361_RXD_INV(0);
-	AD9361_RXD(1) <= AD9361_RXD_INV(1);
-	AD9361_RXD(2) <= AD9361_RXD_INV(2);
-	AD9361_RXD(3) <= AD9361_RXD_INV(3);
-	AD9361_RXD(4) <= not AD9361_RXD_INV(4);
-	AD9361_RXD(5) <= not AD9361_RXD_INV(5);
-	AD9361_TXD_INV(0) <= AD9361_TXD(0);
-	AD9361_TXD_INV(1) <= not AD9361_TXD(1);
-	AD9361_TXD_INV(2) <= not AD9361_TXD(2);
-	AD9361_TXD_INV(3) <= not AD9361_TXD(3);
-	AD9361_TXD_INV(4) <= not AD9361_TXD(4);
-	AD9361_TXD_INV(5) <= AD9361_TXD(5);
+	--AD9361_RXD(0) <= AD9361_RXD_INV(0);
+	--AD9361_RXD(1) <= AD9361_RXD_INV(1);
+	--AD9361_RXD(2) <= AD9361_RXD_INV(2);
+	--AD9361_RXD(3) <= AD9361_RXD_INV(3);
+	--AD9361_RXD(4) <= not AD9361_RXD_INV(4);
+	--AD9361_RXD(5) <= not AD9361_RXD_INV(5);
+	--AD9361_TXD_INV(0) <= AD9361_TXD(0);
+	--AD9361_TXD_INV(1) <= not AD9361_TXD(1);
+	--AD9361_TXD_INV(2) <= not AD9361_TXD(2);
+	--AD9361_TXD_INV(3) <= not AD9361_TXD(3);
+	--AD9361_TXD_INV(4) <= not AD9361_TXD(4);
+	--AD9361_TXD_INV(5) <= AD9361_TXD(5);
 	
 	
 	iddr2: IDDR generic map(DDR_CLK_EDGE=>"SAME_EDGE")
@@ -186,18 +196,54 @@ begin
 	ad_rxFQ1 <= ad_rxFQ when rising_edge(AD9361_DATA_CLK);
 	ad_rxFI2 <= ad_rxFI1 when rising_edge(AD9361_DATA_CLK);
 	ad_rxFQ2 <= ad_rxFQ1 when rising_edge(AD9361_DATA_CLK);
-	
+
+
+	ad_rxdI_invCorrected <= (not ad_rxdI2(5)) &
+							(not ad_rxdI2(4)) &
+							(ad_rxdI2(3)) &
+							(ad_rxdI2(2)) &
+							(ad_rxdI2(1)) &
+							(ad_rxdI2(0));
+	ad_rxdQ_invCorrected <= (not ad_rxdQ2(5)) &
+							(not ad_rxdQ2(4)) &
+							(ad_rxdQ2(3)) &
+							(ad_rxdQ2(2)) &
+							(ad_rxdQ2(1)) &
+							(ad_rxdQ2(0));
 	
 	ad_clk <= AD9361_DATA_CLK;
 	
 	-- when ad_rxFI/ad_rxFQ is high, ad_rxdI/ad_rxdQ correspond to upper 6 bits, and lower 6 bits otherwise
-	ad_rxI0(11 downto 6) <= ad_rxdI2 when ad_rxFI2='1' and rising_edge(ad_clk);
-	ad_rxI0(5 downto 0) <= ad_rxdI2 when ad_rxFI2='0' and rising_edge(ad_clk);
-	ad_rxQ0(11 downto 6) <= ad_rxdQ2 when ad_rxFI2='1' and rising_edge(ad_clk);
-	ad_rxQ0(5 downto 0) <= ad_rxdQ2 when ad_rxFI2='0' and rising_edge(ad_clk);
+	ad_rxI0(11 downto 6) <= ad_rxdI_invCorrected when ad_rxFI2='1' and rising_edge(ad_clk);
+	ad_rxI0(5 downto 0) <= ad_rxdI_invCorrected when ad_rxFI2='0' and rising_edge(ad_clk);
+	ad_rxQ0(11 downto 6) <= ad_rxdQ_invCorrected when ad_rxFI2='1' and rising_edge(ad_clk);
+	ad_rxQ0(5 downto 0) <= ad_rxdQ_invCorrected when ad_rxFI2='0' and rising_edge(ad_clk);
 	ad_rxI <= ad_rxI0 when ad_rxFI2='1' and rising_edge(ad_clk);
 	ad_rxQ <= ad_rxQ0 when ad_rxFI2='1' and rising_edge(ad_clk);
-	
+
+	ad_txdI <= (ad_txdI0(5)) &
+				(not ad_txdI0(4)) &
+				(not ad_txdI0(3)) &
+				(not ad_txdI0(2)) &
+				(not ad_txdI0(1)) &
+				(ad_txdI0(0)) when rising_edge(AD9361_FB_CLK);
+	ad_txdQ <= (ad_txdQ0(5)) &
+				(not ad_txdQ0(4)) &
+				(not ad_txdQ0(3)) &
+				(not ad_txdQ0(2)) &
+				(not ad_txdQ0(1)) &
+				(ad_txdQ0(0)) when rising_edge(AD9361_FB_CLK);
+
+	ad_txdI0 <= ad_txI(11 downto 6) when AD9361_TX_FRM='1' else ad_txI(5 downto 0);
+	ad_txdQ0 <= ad_txQ(11 downto 6) when AD9361_TX_FRM='1' else ad_txQ(5 downto 0);
+
+	ad_txI <= ad_txI1 when rising_edge(AD9361_FB_CLK);
+	ad_txQ <= ad_txQ1 when rising_edge(AD9361_FB_CLK);
+
+	ad_txI1 <= ad_txI0 when AD9361_TX_FRM='1' and rising_edge(AD9361_FB_CLK);
+	ad_txQ1 <= ad_txQ0 when AD9361_TX_FRM='1' and rising_edge(AD9361_FB_CLK);
+
+
 	-- gpios
 	AD9361_SPI_CLK <= EMIO_GPIO_O(0);
 	AD9361_SPI_CS <= EMIO_GPIO_O(1);
@@ -219,9 +265,17 @@ begin
 	-- ad9361 data
 	AD9361_FB_CLK <= AD9361_DATA_CLK;
 	AD9361_TX_FRM <= not AD9361_TX_FRM when rising_edge(AD9361_FB_CLK);
-	AD9361_TXD <= signed(EMIO_GPIO_O(21 downto 16));
+	--AD9361_TXD <= signed(EMIO_GPIO_O(21 downto 16));
 	AD9361_ENABLE <= '1';
+
+	-- transmit zeros when there is no data feed or there is underflow
+	ad_txI0 <= (others=>'0') when streamOut_tvalid='0' else signed(streamOut_tdata(11 downto 0));
+	ad_txQ0 <= (others=>'0') when streamOut_tvalid='0' else signed(streamOut_tdata(27 downto 16));
+
+	streamOut_tready <= AD9361_TX_FRM;
 	
+
+
 	streamClk <= ad_clk;
 	streamIn_tdata(15 downto 0) <= std_logic_vector(resize(ad_rxI, 16));
 	streamIn_tdata(31 downto 16) <= std_logic_vector(resize(ad_rxQ, 16));
@@ -252,6 +306,11 @@ begin
 		streamIn_tready=>streamIn_tready,
 		streamIn_tvalid=>streamIn_tstrobe,
 		
+		
+		streamOut_tdata=>streamOut_tdata,
+		streamOut_tready=>streamOut_tready,
+		streamOut_tvalid=>streamOut_tvalid,
+
 		--fftClk=>fftClk,
 		--fftClk_unbuffered=>fftClk_unbuffered,
 		axiPipeClk=>axiPipeClk,
