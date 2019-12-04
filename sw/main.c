@@ -277,8 +277,11 @@ AD9361_InitParam default_init_param = {
 	0,		//delay_rx_data *** adi,delay-rx-data
 	0,		//rx_data_clock_delay *** adi,rx-data-clock-delay
 	11,		//rx_data_delay *** adi,rx-data-delay
-	7,		//tx_fb_clock_delay *** adi,tx-fb-clock-delay
-	0,		//tx_data_delay *** adi,tx-data-delay
+	0,		//tx_fb_clock_delay *** adi,tx-fb-clock-delay
+	// the FPGA outputs data and clock with transitions aligned because
+	// FBCLK output is driven by a ODDR (clock forwarding). The ad9363 should
+	// delay the data slightly to sample the correct word.
+	11,		//tx_data_delay *** adi,tx-data-delay
 #ifdef ALTERA_PLATFORM
 	300,	//lvds_bias_mV *** adi,lvds-bias-mV
 #else
